@@ -36,3 +36,76 @@ Além disso, a solução não pode depender de apenas um cluster por região. Ca
 * A solução deve reduzir também o blast radius intra-região, evitando que um problema ou manutenção em um único cluster torne a região indisponível.
 * Deve haver consistência operacional entre regiões e entre clusters da mesma região, evitando deriva excessiva de configuração, componentes, políticas e processos de rollout.
 * A solução deve permitir manutenção previsível da plataforma, com possibilidade de drenar ou desativar clusters inteiros sem interrupção de serviço para workloads adequadamente distribuídos.
+
+## Plataforma de hoje 
+
+```mermaid
+flowchart TB
+    Clientes[Clientes / Usuarios] --> CDN[CDN]
+    CDN --> ALB[Application Load Balancer]
+
+    subgraph AWS[AWS - us-east-1]
+        ALB --> TG[Target Group]
+        TG --> TGB[TargetGroupBinding]
+
+        subgraph EKS[EKS Cluster]
+            TGB --> IC[Ingress Controller]
+
+            IC --> SVCA[Service A]
+            IC --> SVCB[Service B]
+            IC --> SVCC[Service C]
+
+            subgraph AZA[us-east-1a]
+                NGA[Node Group A]
+                PODA1[Pods App]
+                PODA2[Pods App]
+                NGA --> PODA1
+                NGA --> PODA2
+            end
+
+            subgraph AZB[us-east-1b]
+                NGB[Node Group B]
+                PODB1[Pods App]
+                PODB2[Pods App]
+                NGB --> PODB1
+                NGB --> PODB2
+            end
+
+            subgraph AZC[us-east-1c]
+                NGC[Node Group C]
+                PODC1[Pods App]
+                PODC2[Pods App]
+                NGC --> PODC1
+                NGC --> PODC2
+            end
+
+            SVCA -. distribui .-> PODA1
+            SVCA -. distribui .-> PODB1
+            SVCA -. distribui .-> PODC1
+
+            SVCB -. distribui .-> PODA2
+            SVCB -. distribui .-> PODB2
+            SVCB -. distribui .-> PODC2
+
+            SVCC -. distribui .-> PODA1
+            SVCC -. distribui .-> PODB2
+            SVCC -. distribui .-> PODC2
+        end
+
+        subgraph DB[Database Layer - Multi-AZ]
+            DBPrimary[(Primary DB)]
+            DBStandby[(Standby DB)]
+            DBReplica[(Read Replica / Replica Opcional)]
+        end
+    end
+
+    PODA1 --> DBPrimary
+    PODB1 --> DBPrimary
+    PODC1 --> DBPrimary
+    PODA2 --> DBPrimary
+    PODB2 --> DBPrimary
+    PODC2 --> DBPrimary
+
+    DBPrimary --> DBStandby
+    DBPrimary --> DBReplica
+```
